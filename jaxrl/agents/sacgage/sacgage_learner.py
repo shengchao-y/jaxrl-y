@@ -10,6 +10,7 @@ import optax
 
 from jaxrl.agents.sacgage import temperature
 from jaxrl.agents.sacgage.actor import update as update_actor
+from jaxrl.agents.sacgage.actor import update_gmean as update_actor_gmean
 from jaxrl.agents.sacgage.critic import target_update
 from jaxrl.agents.sacgage.critic import update as update_critic
 from jaxrl.datasets import Batch
@@ -46,10 +47,15 @@ def _update_jit(
     new_temp = temp
     alpha_info = {}
 
+    # gage
+    rng, key = jax.random.split(rng)
+    new_actor, gmean_info = update_actor_gmean(key, new_actor, batch, log_std_min=log_std_min)
+
     return rng, new_actor, new_critic, new_target_critic, new_temp, {
         **critic_info,
         **actor_info,
-        **alpha_info
+        **alpha_info,
+        **gmean_info
     }
 
 

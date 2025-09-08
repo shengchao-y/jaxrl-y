@@ -16,7 +16,7 @@ def update(key: PRNGKey, actor: Model, critic: Model, temp: Model,
         q1, q2 = critic(batch.observations, actions)
         q = jnp.minimum(q1, q2)
         ent_coef = 0.0
-        actor_loss = (log_probs * ent_coef - q).mean() + 0.01 * jnp.sum(means**2, axis=-1).mean()
+        actor_loss = (log_probs * ent_coef - q).mean()
         return actor_loss, {
             'actor_loss': actor_loss,
             'entropy': -log_probs.mean(),
@@ -24,5 +24,19 @@ def update(key: PRNGKey, actor: Model, critic: Model, temp: Model,
         }
 
     new_actor, info = actor.apply_gradient(actor_loss_fn)
+
+    return new_actor, info
+
+def update_gmean(key: PRNGKey, actor: Model,
+           batch: Batch, log_std_min: float) -> Tuple[Model, InfoDict]:
+
+    def actor_gmean_fn(actor_params: Params) -> Tuple[jnp.ndarray, InfoDict]:
+        _, _, means = actor.apply_fn({'params': actor_params}, batch.observations, log_std_min=log_std_min)
+        actor_loss = 0.01 * jnp.sum(means**2, axis=-1).mean()
+        return actor_loss, {
+            'actor_loss_gmean': actor_loss,
+        }
+
+    new_actor, info = actor.apply_gradient(actor_gmean_fn)
 
     return new_actor, info
