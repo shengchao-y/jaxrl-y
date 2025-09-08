@@ -42,7 +42,7 @@ class NormalTanhPolicy(nn.Module):
     state_dependent_std: bool = True
     dropout_rate: Optional[float] = None
     final_fc_init_scale: float = 1.0
-    log_std_min: Optional[float] = None
+    # log_std_min: Optional[float] = None
     log_std_max: Optional[float] = None
     tanh_squash_distribution: bool = True
     init_mean: Optional[jnp.ndarray] = None
@@ -51,7 +51,8 @@ class NormalTanhPolicy(nn.Module):
     def __call__(self,
                  observations: jnp.ndarray,
                  temperature: float = 1.0,
-                 training: bool = False) -> tfd.Distribution:
+                 training: bool = False,
+                 log_std_min: float=-20) -> tfd.Distribution:
         outputs = MLP(self.hidden_dims,
                       activate_final=True,
                       dropout_rate=self.dropout_rate)(observations,
@@ -71,7 +72,8 @@ class NormalTanhPolicy(nn.Module):
             log_stds = self.param('log_stds', nn.initializers.zeros,
                                   (self.action_dim, ))
 
-        log_std_min = self.log_std_min or LOG_STD_MIN
+        # jax.debug.breakpoint()
+        # log_std_min = self.log_std_min or LOG_STD_MIN
         log_std_max = self.log_std_max or LOG_STD_MAX
         log_stds = jnp.clip(log_stds, log_std_min, log_std_max)
 
@@ -83,9 +85,9 @@ class NormalTanhPolicy(nn.Module):
                                                temperature)
         if self.tanh_squash_distribution:
             return tfd.TransformedDistribution(distribution=base_dist,
-                                               bijector=tfb.Tanh())
+                                               bijector=tfb.Tanh()), log_stds, means
         else:
-            return base_dist
+            return base_dist, log_stds, means
 
 
 class NormalTanhMixturePolicy(nn.Module):
@@ -140,13 +142,15 @@ def _sample_actions(
         actor_params: Params,
         observations: np.ndarray,
         temperature: float = 1.0,
-        distribution: str = 'log_prob') -> Tuple[PRNGKey, jnp.ndarray]:
+        distribution: str = 'log_prob',
+        log_std_min: float = -20.0) -> Tuple[PRNGKey, jnp.ndarray]:
     if distribution == 'det':
-        return rng, actor_apply_fn({'params': actor_params}, observations,
-                                   temperature)
+        dist, _, _= actor_apply_fn({'params': actor_params}, observations,
+                                   temperature, log_std_min=log_std_min)
+        return rng, dist
     else:
-        dist = actor_apply_fn({'params': actor_params}, observations,
-                              temperature)
+        dist, _, _ = actor_apply_fn({'params': actor_params}, observations,
+                              temperature, log_std_min=log_std_min)
         rng, key = jax.random.split(rng)
         return rng, dist.sample(seed=key)
 
@@ -157,6 +161,7 @@ def sample_actions(
         actor_params: Params,
         observations: np.ndarray,
         temperature: float = 1.0,
-        distribution: str = 'log_prob') -> Tuple[PRNGKey, jnp.ndarray]:
+        distribution: str = 'log_prob',
+        log_std_min: float = -20.0) -> Tuple[PRNGKey, jnp.ndarray]:
     return _sample_actions(rng, actor_apply_fn, actor_params, observations,
-                           temperature, distribution)
+                           temperature, distribution, log_std_min)

@@ -8,10 +8,10 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-from jaxrl.agents.sac import temperature
-from jaxrl.agents.sac.actor import update as update_actor
-from jaxrl.agents.sac.critic import target_update
-from jaxrl.agents.sac.critic import update as update_critic
+from jaxrl.agents.sacgage import temperature
+from jaxrl.agents.sacgage.actor import update as update_actor
+from jaxrl.agents.sacgage.critic import target_update
+from jaxrl.agents.sacgage.critic import update as update_critic
 from jaxrl.datasets import Batch
 from jaxrl.networks import critic_net, policies
 from jaxrl.networks.common import InfoDict, Model, PRNGKey
@@ -43,8 +43,8 @@ def _update_jit(
 
     rng, key = jax.random.split(rng)
     new_actor, actor_info = update_actor(key, actor, new_critic, temp, batch, log_std_min=log_std_min)
-    new_temp, alpha_info = temperature.update(temp, actor_info['entropy'],
-                                              target_entropy, use_log_transform=use_log_transform)
+    new_temp = temp
+    alpha_info = {}
 
     return rng, new_actor, new_critic, new_target_critic, new_temp, {
         **critic_info,
@@ -53,7 +53,7 @@ def _update_jit(
     }
 
 
-class SACLearner(object):
+class SACGAGELearner(object):
 
     def __init__(self,
                  seed: int,
@@ -68,7 +68,7 @@ class SACLearner(object):
                  target_update_period: int = 1,
                  target_entropy: Optional[float] = None,
                  backup_entropy: bool = True,
-                 init_temperature: float = 1.0,
+                 init_temperature: float = 0.0,
                  init_mean: Optional[np.ndarray] = None,
                  use_log_transform: bool = True,
                  policy_final_fc_init_scale: float = 1.0,
