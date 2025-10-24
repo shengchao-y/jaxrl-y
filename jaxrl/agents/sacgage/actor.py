@@ -28,11 +28,11 @@ def update(key: PRNGKey, actor: Model, critic: Model, temp: Model,
     return new_actor, info
 
 def update_gmean(key: PRNGKey, actor: Model,
-           batch: Batch, log_std_min: float) -> Tuple[Model, InfoDict]:
+           batch: Batch, log_std_min: float, gmean_factor: float) -> Tuple[Model, InfoDict]:
 
     def actor_gmean_fn(actor_params: Params) -> Tuple[jnp.ndarray, InfoDict]:
         _, _, means = actor.apply_fn({'params': actor_params}, batch.observations, log_std_min=log_std_min)
-        actor_loss = 0.01 * jnp.sum(means**2, axis=-1).mean()
+        actor_loss = gmean_factor * jnp.sum(means**2, axis=-1).mean()
         return actor_loss, {
             'actor_loss_gmean': actor_loss,
         }

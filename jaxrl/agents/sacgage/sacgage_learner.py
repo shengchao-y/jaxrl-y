@@ -24,7 +24,7 @@ def _update_jit(
     rng: PRNGKey, actor: Model, critic: Model, target_critic: Model,
     temp: Model, batch: Batch, discount: float, tau: float,
     target_entropy: float, backup_entropy: bool, update_target: bool, use_log_transform: bool,
-    log_std_min: float,
+    log_std_min: float, gmean_factor: float
 ) -> Tuple[PRNGKey, Model, Model, Model, Model, InfoDict]:
 
     rng, key = jax.random.split(rng)
@@ -49,7 +49,7 @@ def _update_jit(
 
     # gage
     rng, key = jax.random.split(rng)
-    new_actor, gmean_info = update_actor_gmean(key, new_actor, batch, log_std_min=log_std_min)
+    new_actor, gmean_info = update_actor_gmean(key, new_actor, batch, log_std_min=log_std_min, gmean_factor=gmean_factor)
 
     return rng, new_actor, new_critic, new_target_critic, new_temp, {
         **critic_info,
@@ -83,6 +83,7 @@ class SACGAGELearner(object):
                  reset_models: bool = False,
                  max_gradient_norm: Optional[float] = None,
                  log_std_min: float = -20.0,
+                 gmean_factor: float = 0.01,
                  ):
         """
         An implementation of the version of Soft-Actor-Critic described in https://arxiv.org/abs/1812.05905
@@ -172,6 +173,7 @@ class SACGAGELearner(object):
 
         # gage
         self.log_std_min = log_std_min
+        self.gmean_factor = gmean_factor
 
     def sample_actions(self,
                        observations: np.ndarray,
@@ -195,7 +197,7 @@ class SACGAGELearner(object):
             self.rng, self.actor, self.critic, self.target_critic, self.temp,
             batch, self.discount, self.tau, self.target_entropy,
             self.backup_entropy, self.step % self.target_update_period == 0,
-            use_log_transform=self.use_log_transform, log_std_min=self.log_std_min)
+            use_log_transform=self.use_log_transform, log_std_min=self.log_std_min, gmean_factor=self.gmean_factor)
 
         self.rng = new_rng
         self.actor = new_actor
